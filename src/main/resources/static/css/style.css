@@ -1,0 +1,33 @@
+/* Reset default body margin and add global font style */
+body {
+    margin-top: 80px; /* Để nội dung không bị che bởi navbar */
+    font-family: Arial, sans-serif;
+}
+
+/* Navbar Styling */
+.navbar {
+    background: linear-gradient(90deg, #007bff, #0056b3);
+}
+
+.navbar .nav-link.active {
+    color: #fff;
+    font-weight: bold;
+}
+
+.navbar .nav-link:hover {
+    color: #ffc107;
+}
+
+/* Footer Styling */
+.footer {
+    background-color: #0056b3;
+    color: white;
+    padding: 15px;
+}
+
+.footer p {
+    margin: 0;
+}
+.error {
+	color: red;
+}

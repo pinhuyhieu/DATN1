@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+	th:replace="~{base::layout(~{::section})}">
+<head>
+<meta charset="ISO-8859-1">
+<title>Insert title here</title>
+</head>
+<body>
+<section>
+	<div class="container-fluid mt-5 p-5">
+
+		<!-- Thông báo l?i/success -->
+		<div th:if="${session.succMsg}" class="alert alert-success text-center">
+			<p>[[${session.succMsg}]]</p>
+		</div>
+		<div th:if="${session.errorMsg}" class="alert alert-danger text-center">
+			<p>[[${session.errorMsg}]]</p>
+		</div>
+
+		<!-- B?ng gi? hàng -->
+		<div class="card card-sh">
+			<div class="card-header text-center">
+				<p class="fs-4">Cart Page</p>
+			</div>
+			<div class="card-body">
+				<table class="table">
+					<thead>
+					<tr>
+						<th scope="col">Sl No</th>
+						<th scope="col">Image</th>
+						<th scope="col">Product Name</th>
+						<th scope="col">Price</th>
+						<th scope="col" class="text-center">Quantity</th>
+						<th scope="col">Total Price</th>
+						<th scope="col">Action</th>
+					</tr>
+					</thead>
+					<tbody>
+					<tr th:each="cart, c : ${carts}">
+						<th scope="row">[[${c.count}]]</th>
+						<td><img
+								th:src="@{'/img/product_img/'+${cart.product.image}}"
+								width="70px" height="70px"></td>
+						<td>[[${cart.product.title}]]</td>
+						<td>[[${cart.product.discountPrice}]]</td>
+						<td class="text-center">
+							<a th:href="@{'/user/cartQuantityUpdate?sy=de&cid='+${cart.id}}"
+							   class="btn btn-sm btn-outline-danger">
+								<i class="fa-solid fa-minus"></i>
+							</a>
+							<span> [[${cart.quantity}]] </span>
+							<a th:href="@{'/user/cartQuantityUpdate?sy=in&cid='+${cart.id}}"
+							   class="btn btn-sm btn-outline-success">
+								<i class="fa-solid fa-plus"></i>
+							</a>
+						</td>
+						<td>[[${cart.totalPrice}]] VND</td>
+						<td>
+							<a th:href="@{'/user/removeCartItem?cid='+${cart.id}}"
+							   class="btn btn-sm btn-danger">Remove</a>
+						</td>
+					</tr>
+					<tr>
+						<td colspan="4"></td>
+						<td class="fw-bold">Total Price</td>
+						<td class="fw-bold">[[${totalOrderPrice}]] VND</td>
+					</tr>
+					</tbody>
+				</table>
+				<div class="text-center mt-4">
+					<a href="/user/orders" class="btn btn-warning"> Proceed to Payment</a>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+</body>
+
+</html>
