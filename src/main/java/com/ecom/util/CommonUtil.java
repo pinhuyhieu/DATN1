@@ -2,7 +2,13 @@ package com.ecom.util;
 
 import java.io.UnsupportedEncodingException;
 import java.security.Principal;
+import java.util.List;
 
+import com.ecom.model.Customer;
+import com.ecom.model.InvoiceDetails;
+import com.ecom.model.Orders;
+import com.ecom.model.ProductDetails;
+import com.ecom.repository.InvoiceDetailsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -22,6 +28,8 @@ public class CommonUtil {
 	
 	@Autowired
 	private CustomerService customerService;
+	@Autowired
+	private InvoiceDetailsRepository invoiceDetailsRepository;
 
 	public Boolean sendMail(String url, String reciepentEmail) throws UnsupportedEncodingException, MessagingException {
 
@@ -49,42 +57,62 @@ public class CommonUtil {
 	}
 	
 	String msg=null;;
-	
-	public Boolean sendMailForProductOrder(ProductOrder order,String status) throws Exception
-	{
-		
-		msg="<p>Hello [[name]],</p>"
-				+ "<p>Thank you order <b>[[orderStatus]]</b>.</p>"
+
+	public Boolean sendMailForOrder(Orders order, String status) throws Exception {
+		String msg = "<p>Hello [[name]],</p>"
+				+ "<p>Thank you for your order. Your order is currently <b>[[orderStatus]]</b>.</p>"
+				+ "<p><b>Order Details:</b></p>"
+				+ "<p>Order ID : [[orderId]]</p>"
+				+ "<p>Shipping Method : [[shippingMethod]]</p>"
+				+ "<p>Total Amount : [[totalAmount]]</p>"
+				+ "<p>Payment Type : [[paymentType]]</p>"
 				+ "<p><b>Product Details:</b></p>"
-				+ "<p>Name : [[productName]]</p>"
-				+ "<p>Category : [[category]]</p>"
-				+ "<p>Quantity : [[quantity]]</p>"
-				+ "<p>Price : [[price]]</p>"
-				+ "<p>Payment Type : [[paymentType]]</p>";
-		
+				+ "<ul>[[productDetails]]</ul>";
+
 		MimeMessage message = mailSender.createMimeMessage();
 		MimeMessageHelper helper = new MimeMessageHelper(message);
 
-		helper.setFrom("nguyenhuyhieu2004@gmail.com", "Shooping Cart");
-		helper.setTo(order.getOrderAddress().getEmail());
+		helper.setFrom("nguyenhuyhieu2004@gmail.com", "Shopping Cart");
+		helper.setTo(order.getCustomer().getEmail());
 
-		msg=msg.replace("[[name]]",order.getOrderAddress().getFirstName());
-		msg=msg.replace("[[orderStatus]]",status);
-		msg=msg.replace("[[productName]]", order.getProduct().getTitle());
-		msg=msg.replace("[[category]]", order.getProduct().getCategory());
-		msg=msg.replace("[[quantity]]", order.getQuantity().toString());
-		msg=msg.replace("[[price]]", order.getPrice().toString());
-		msg=msg.replace("[[paymentType]]", order.getPaymentType());
-		
-		helper.setSubject("Product Order Status");
+		StringBuilder productDetails = new StringBuilder();
+
+		// Truy vấn InvoiceDetails dựa trên invoiceId từ order
+		List<InvoiceDetails> details = invoiceDetailsRepository.findByInvoiceId(order.getInvoice().getId());
+
+		for (InvoiceDetails detail : details) {
+			ProductDetails productDetailsEntity = detail.getProductDetails();
+			productDetails.append("<li>")
+					.append(productDetailsEntity.getProduct().getTitle()) // Tên sản phẩm
+					.append(" (Color: ").append(productDetailsEntity.getColor().getColorName()).append(", ") // Màu
+					.append("Size: ").append(productDetailsEntity.getSize().getSizeName()).append(", ") // Kích thước
+					.append("Quantity: ").append(detail.getQuantity()).append(", ") // Số lượng
+					.append("Price: ").append(detail.getQuantity() * productDetailsEntity.getProduct().getDiscountPrice()) // Tổng giá
+					.append(")")
+					.append("</li>");
+		}
+
+		msg = msg.replace("[[name]]", order.getCustomer().getName());
+		msg = msg.replace("[[orderStatus]]", status);
+		msg = msg.replace("[[orderId]]", order.getId().toString());
+		msg = msg.replace("[[shippingMethod]]", order.getShippingMethod());
+		msg = msg.replace("[[totalAmount]]", order.getTotalAmount().toString());
+		msg = msg.replace("[[paymentType]]", order.getPaymentMethod());
+		msg = msg.replace("[[productDetails]]", productDetails.toString());
+
+		helper.setSubject("Order Status Update");
 		helper.setText(msg, true);
+
 		mailSender.send(message);
+
 		return true;
 	}
-	
-	public UserDtls getLoggedInUserDetails(Principal p) {
+
+
+
+	public Customer getLoggedInUserDetails(Principal p) {
 		String email = p.getName();
-		UserDtls userDtls = customerService.getUserByEmail(email);
+		Customer userDtls = customerService.getCustomerByEmail(email);
 		return userDtls;
 	}
 

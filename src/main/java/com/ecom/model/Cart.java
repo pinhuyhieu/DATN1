@@ -12,7 +12,7 @@ import org.hibernate.query.Order;
 @NoArgsConstructor
 @Getter
 @Setter
-public class 	Cart {
+public class Cart {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,5 +35,10 @@ public class 	Cart {
 
 	@Column(name = "is_ordered", nullable = false)
 	private Boolean isOrdered;
+	@Transient
+	private Double totalPrice;
+
+	@Transient
+	private Double totalOrderPrice;
 
 }

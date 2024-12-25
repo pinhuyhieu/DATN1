@@ -8,10 +8,19 @@ import com.ecom.model.Cart;
 
 public interface CartRepository extends JpaRepository<Cart, Integer> {
 
-	public Cart findByProductIdAndUserId(Integer productId, Integer userId);
+	/**
+	 * Tìm Cart theo productId và customerId
+	 */
+	public Cart findByProductIdAndCustomerId(Integer productId, Integer customerId);
 
-	public Integer countByUserId(Integer userId);
+	/**
+	 * Đếm số lượng Cart theo customerId
+	 */
+	public Integer countByCustomerId(Integer customerId);
 
-	public List<Cart> findByUserId(Integer userId);
+	/**
+	 * Lấy danh sách Cart theo customerId
+	 */
+	public List<Cart> findByCustomerId(Integer customerId);
 
 }

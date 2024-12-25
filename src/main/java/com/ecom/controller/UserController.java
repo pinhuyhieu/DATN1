@@ -3,6 +3,7 @@ package com.ecom.controller;
 import java.security.Principal;
 import java.util.List;
 
+import com.ecom.model.Customer;
 import com.ecom.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,7 +20,6 @@ import org.springframework.web.multipart.MultipartFile;
 import com.ecom.model.Cart;
 import com.ecom.model.Category;
 import com.ecom.util.CommonUtil;
-import com.ecom.util.OrderStatus;
 
 import jakarta.servlet.http.HttpSession;
 
@@ -53,19 +53,26 @@ public class UserController {
 	}
 
 	@ModelAttribute
-	public void getUserDetails(Principal p, Model m) {
-		if (p != null) {
-			String email = p.getName();
-			UserDtls userDtls = customerService.getUserByEmail(email);
-			m.addAttribute("user", userDtls);
-			Integer countCart = cartService.getCountCart(userDtls.getId());
-			m.addAttribute("countCart", countCart);
+	public void getUserDetails(Principal principal, Model model) {
+		if (principal != null) {
+			// Lấy email từ đối tượng Principal
+			String email = principal.getName();
+
+			// Lấy thông tin khách hàng dựa trên email
+			Customer customer = customerService.getCustomerByEmail(email);
+			if (customer != null) {
+				model.addAttribute("user", customer);
+
+				// Đếm số lượng sản phẩm trong giỏ hàng
+				Integer cartItemCount = cartService.getCountCart(customer.getId());
+				model.addAttribute("countCart", cartItemCount);
+			}
 		}
 
-		List<Category> allActiveCategory = categoryService.getAllActiveCategory();
-		m.addAttribute("categorys", allActiveCategory);
+		// Lấy danh sách tất cả các danh mục đang hoạt động
+		List<Category> activeCategories = categoryService.getAllActiveCategory();
+		model.addAttribute("categories", activeCategories);
 	}
-
 	@GetMapping("/addCart")
 	public String addToCart(@RequestParam Integer pid, @RequestParam Integer uid, HttpSession session) {
 		Cart saveCart = cartService.saveCart(pid, uid);

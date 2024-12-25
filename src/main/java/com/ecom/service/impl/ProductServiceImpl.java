@@ -1,5 +1,16 @@
 package com.ecom.service.impl;
 
+import com.ecom.model.Product;
+import com.ecom.repository.ProductRepository;
+import com.ecom.service.ProductService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,18 +20,6 @@ import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.util.ObjectUtils;
-import org.springframework.web.multipart.MultipartFile;
-
-import com.ecom.model.Product;
-import com.ecom.repository.ProductRepository;
-import com.ecom.service.ProductService;
 
 @Service
 public class ProductServiceImpl implements ProductService {
@@ -29,154 +28,139 @@ public class ProductServiceImpl implements ProductService {
 	private ProductRepository productRepository;
 
 	@Override
-	public Product saveProduct(Product product) {
-		return productRepository.save(product);
+	public Product saveProduct(Product product, MultipartFile image) {
+		// Xử lý ảnh
+		if (image != null && !image.isEmpty()) {
+			String imageName = saveImage(image);
+			product.setImage(imageName);
+		}
 
+		// Tính giá sau giảm giá
+		calculateDiscountPrice(product);
+
+		return productRepository.save(product);
+	}
+
+
+	@Override
+	public Product updateProduct(Integer id, Product updatedProduct, MultipartFile image) {
+		Product existingProduct = productRepository.findById(id)
+				.orElseThrow(() -> new RuntimeException("Product not found with ID: " + id));
+
+		// Cập nhật thông tin từ updatedProduct
+		existingProduct.setTitle(updatedProduct.getTitle());
+		existingProduct.setDescription(updatedProduct.getDescription());
+		existingProduct.setCategory(updatedProduct.getCategory());
+		existingProduct.setPrice(updatedProduct.getPrice());
+		existingProduct.setStock(updatedProduct.getStock());
+		existingProduct.setIsActive(updatedProduct.getIsActive());
+		existingProduct.setDiscount(updatedProduct.getDiscount());
+
+		// Xử lý ảnh
+		if (image != null && !image.isEmpty()) {
+			String imageName = saveImage(image);
+			existingProduct.setImage(imageName);
+		}
+
+		// Tính giá sau giảm giá
+		calculateDiscountPrice(existingProduct);
+
+		return productRepository.save(existingProduct);
+	}
+
+
+	@Override
+	public Product getProductById(Integer id) {
+		Product product = productRepository.findById(id)
+				.orElseThrow(() -> new RuntimeException("Product not found with ID: " + id));
+		product.setFormattedPrice(formatCurrency(product.getPrice()));
+		product.setFormattedDiscountPrice(formatCurrency(product.getDiscountPrice()));
+		return product;
 	}
 
 	@Override
 	public List<Product> getAllProducts() {
-		List<Product> products = productRepository.findAll();
-
-		// Định dạng giá tiền
-		products.forEach(product -> {
-			product.setFormattedPrice(formatCurrency(product.getPrice()));
-			product.setFormattedDiscountPrice(formatCurrency(product.getDiscountPrice()));
-		});
-
-		return products;
+		return productRepository.findAll();
 	}
-
 	@Override
 	public Page<Product> getAllProductsPagination(Integer pageNo, Integer pageSize) {
 		Pageable pageable = PageRequest.of(pageNo, pageSize);
 		return productRepository.findAll(pageable);
 	}
-
 	@Override
-	public Boolean deleteProduct(Integer id) {
-		Product product = productRepository.findById(id).orElse(null);
-
-		if (!ObjectUtils.isEmpty(product)) {
-			productRepository.delete(product);
+	public boolean deleteProduct(Integer id) {
+		if (productRepository.existsById(id)) {
+			productRepository.deleteById(id);
 			return true;
 		}
 		return false;
 	}
-
 	@Override
-	public Product getProductById(Integer id) {
-		Product product = productRepository.findById(id).orElse(null);
-		return product;
+	public List<Product> searchProduct(String keyword) {
+		return productRepository.findByTitleContainingIgnoreCaseOrCategoryContainingIgnoreCase(keyword, keyword);
 	}
 
 	@Override
-	public Product updateProduct(Product product, MultipartFile image) {
-
-		Product dbProduct = getProductById(product.getId());
-
-		String imageName = image.isEmpty() ? dbProduct.getImage() : image.getOriginalFilename();
-
-		dbProduct.setTitle(product.getTitle());
-		dbProduct.setDescription(product.getDescription());
-		dbProduct.setCategory(product.getCategory());
-		dbProduct.setPrice(product.getPrice());
-		dbProduct.setStock(product.getStock());
-		dbProduct.setImage(imageName);
-		dbProduct.setIsActive(product.getIsActive());
-		dbProduct.setDiscount(product.getDiscount());
-
-		// 5=100*(5/100); 100-5=95
-		Double disocunt = product.getPrice() * (product.getDiscount() / 100.0);
-		Double discountPrice = product.getPrice() - disocunt;
-		dbProduct.setDiscountPrice(discountPrice);
-
-		Product updateProduct = productRepository.save(dbProduct);
-
-		if (!ObjectUtils.isEmpty(updateProduct)) {
-
-			if (!image.isEmpty()) {
-
-				try {
-					File saveFile = new ClassPathResource("static/img").getFile();
-
-					Path path = Paths.get(saveFile.getAbsolutePath() + File.separator + "product_img" + File.separator
-							+ image.getOriginalFilename());
-					Files.copy(image.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
-
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-			return product;
+	public Page<Product> searchProductPagination(Integer pageNo, Integer pageSize, String keyword) {
+		Pageable pageable = PageRequest.of(pageNo, pageSize);
+		return productRepository.findByTitleContainingIgnoreCaseOrCategoryContainingIgnoreCase(keyword, keyword, pageable);
+	}
+	private void calculateDiscountPrice(Product product) {
+		double discountAmount = product.getPrice() * (product.getDiscount() / 100.0);
+		double discountPrice = product.getPrice() - discountAmount;
+		product.setDiscountPrice(discountPrice);
+	}
+	private String saveImage(MultipartFile image) {
+		try {
+			File saveFile = new ClassPathResource("static/img").getFile();
+			Path path = Paths.get(saveFile.getAbsolutePath() + File.separator + "product_img" + File.separator + image.getOriginalFilename());
+			Files.copy(image.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
+			return image.getOriginalFilename();
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to save image", e);
 		}
-		return null;
 	}
-
 	@Override
 	public List<Product> getAllActiveProducts(String category) {
-		List<Product> products = null;
-		if (ObjectUtils.isEmpty(category)) {
-			products = productRepository.findByIsActiveTrue();
+		if (category == null || category.isEmpty()) {
+			// Nếu không có danh mục, trả về tất cả sản phẩm đang hoạt động
+			return productRepository.findByIsActiveTrue();
 		} else {
-			products = productRepository.findByCategory(category);
+			// Nếu có danh mục, tìm sản phẩm đang hoạt động theo danh mục
+			return productRepository.findByIsActiveTrueAndCategoryNameIgnoreCase(category);
 		}
-
-		return products;
 	}
-
-	@Override
-	public List<Product> searchProduct(String ch) {
-		return productRepository.findByTitleContainingIgnoreCaseOrCategoryContainingIgnoreCase(ch, ch);
-	}
-
-	@Override
-	public Page<Product> searchProductPagination(Integer pageNo, Integer pageSize, String ch) {
-		Pageable pageable = PageRequest.of(pageNo, pageSize);
-		return productRepository.findByTitleContainingIgnoreCaseOrCategoryContainingIgnoreCase(ch, ch, pageable);
-	}
-
 	@Override
 	public Page<Product> getAllActiveProductPagination(Integer pageNo, Integer pageSize, String category) {
-
 		Pageable pageable = PageRequest.of(pageNo, pageSize);
-		Page<Product> pageProduct = null;
 
-		if (ObjectUtils.isEmpty(category)) {
-			pageProduct = productRepository.findByIsActiveTrue(pageable);
+		if (category == null || category.isEmpty()) {
+			// Lấy tất cả sản phẩm đang hoạt động nếu không có danh mục
+			return productRepository.findByIsActiveTrue(pageable);
 		} else {
-			pageProduct = productRepository.findByCategory(pageable, category);
+			// Lấy sản phẩm đang hoạt động theo danh mục cụ thể
+			return productRepository.findByIsActiveTrueAndTitleContainingIgnoreCase(category, pageable);
 		}
-		return pageProduct;
 	}
-
 	@Override
-	public Page<Product> searchActiveProductPagination(Integer pageNo, Integer pageSize, String category, String ch) {
-
-		Page<Product> pageProduct = null;
+	public Page<Product> searchActiveProductPagination(Integer pageNo, Integer pageSize, String category, String keyword) {
 		Pageable pageable = PageRequest.of(pageNo, pageSize);
 
-		pageProduct = productRepository.findByisActiveTrueAndTitleContainingIgnoreCaseOrCategoryContainingIgnoreCase(ch,
-				ch, pageable);
-
-//		if (ObjectUtils.isEmpty(category)) {
-//			pageProduct = productRepository.findByIsActiveTrue(pageable);
-//		} else {
-//			pageProduct = productRepository.findByCategory(pageable, category);
-//		}
-		return pageProduct;
+		if ((category == null || category.isEmpty()) && (keyword == null || keyword.isEmpty())) {
+			// Nếu không có category và keyword, lấy tất cả sản phẩm đang hoạt động
+			return productRepository.findByIsActiveTrue(pageable);
+		} else if (category != null && !category.isEmpty()) {
+			// Nếu chỉ có category, tìm theo category và trạng thái isActive
+			return productRepository.findByIsActiveTrueAndCategoryNameIgnoreCaseAndTitleContainingIgnoreCase(category, keyword, pageable);
+		} else {
+			// Nếu chỉ có keyword, tìm theo keyword và trạng thái isActive
+			return productRepository.findByIsActiveTrueAndTitleContainingIgnoreCase(keyword, pageable);
+		}
 	}
-
-
-
-	// Các hàm khác giữ nguyên...
-
 	@Override
 	public String formatCurrency(double amount) {
 		// Sử dụng định dạng tiền tệ của Việt Nam
 		NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
 		return currencyFormatter.format(amount); // Trả về chuỗi định dạng, ví dụ: "90.000 ₫"
 	}
-
-
 }

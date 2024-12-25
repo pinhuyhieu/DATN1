@@ -1,9 +1,17 @@
+package com.ecom.service.impl;
+
 import com.ecom.model.Cart;
 import com.ecom.model.Customer;
+import com.ecom.model.Product;
 import com.ecom.repository.CartRepository;
+import com.ecom.repository.CustomerRepository;
 import com.ecom.repository.ProductRepository;
+import com.ecom.service.CartService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.ObjectUtils;
+
+import java.util.List;
 
 @Service
 public class CartServiceImpl implements CartService {
@@ -31,7 +39,7 @@ public class CartServiceImpl implements CartService {
 		Cart existingCart = cartRepository.findByProductIdAndCustomerId(productId, customerId);
 
 		// Xử lý thêm mới hoặc cập nhật giỏ hàng
-		Cart cart = (existingCart == null) ? new Cart() : existingCart;
+		Cart cart = ObjectUtils.isEmpty(existingCart) ? new Cart() : existingCart;
 
 		if (cart.getId() == null) { // Nếu giỏ hàng chưa tồn tại
 			if (product.getStock() < 1) {
@@ -57,10 +65,10 @@ public class CartServiceImpl implements CartService {
 	@Override
 	public List<Cart> getCartsByCustomer(Integer customerId) {
 		List<Cart> carts = cartRepository.findByCustomerId(customerId);
-		Double totalOrderPrice = 0.0;
+		double totalOrderPrice = 0.0;
 
 		for (Cart cart : carts) {
-			Double totalPrice = cart.getProduct().getDiscountPrice() * cart.getQuantity();
+			double totalPrice = cart.getProduct().getDiscountPrice() * cart.getQuantity();
 			cart.setTotalPrice(totalPrice);
 			totalOrderPrice += totalPrice;
 			cart.setTotalOrderPrice(totalOrderPrice); // Tổng giá trị giỏ hàng

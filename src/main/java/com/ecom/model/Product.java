@@ -1,8 +1,6 @@
 package com.ecom.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,53 +13,60 @@ import lombok.Setter;
 @Entity
 @Table(name = "product")
 public class Product {
-		@Id
-		@GeneratedValue(strategy = GenerationType.IDENTITY)
-		private Integer id;
 
-		@Column(name = "title", nullable = false)
-		private String title;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Integer id;
 
-		@Column(name = "description")
-		private String description;
+	@Column(name = "category", length = 255)
+	private String category; // Tên danh mục, có thể thay thế bằng `Category` entity nếu cần liên kết.
 
-		@Column(name = "price", nullable = false)
-		private Double price;
+	@Column(name = "description", length = 5000)
+	private String description; // Mô tả sản phẩm.
 
-		@Column(name = "discount_price")
-		private Double discountPrice;
+	@Column(name = "discount")
+	private Integer discount; // Giá trị giảm giá (phần trăm hoặc cố định).
 
-		@Column(name = "stock", nullable = false)
-		private Integer stock;
+	@Column(name = "discount_price", precision = 10, scale = 2)
+	private Double discountPrice; // Giá sau giảm giá.
 
-		@Column(name = "is_active", nullable = false)
-		private Boolean isActive;
+	@Column(name = "image", length = 255)
+	private String image; // Đường dẫn hình ảnh sản phẩm.
 
-		@ManyToOne
-		@JoinColumn(name = "category_id", nullable = false)
-		private Category category;
+	@Column(name = "is_active")
+	private Boolean isActive; // Trạng thái sản phẩm (hoạt động hoặc không).
 
+	@Column(name = "price", precision = 10, scale = 2)
+	private Double price; // Giá sản phẩm.
 
-		@Transient
-		private String formattedPrice;
+	@Column(name = "stock")
+	private Integer stock; // Số lượng tồn kho.
 
-		public String getFormattedPrice() {
-			return formattedPrice;
-		}
+	@Column(name = "title", length = 500)
+	private String title; // Tên sản phẩm.
 
-		public void setFormattedPrice(String formattedPrice) {
-			this.formattedPrice = formattedPrice;
-		}
+	@Column(name = "category_id")
+	private Integer categoryId; // ID danh mục liên kết.
 
-		@Transient
-		private String formattedDiscountPrice;
+	@Transient
+	private String formattedPrice; // Định dạng giá hiển thị.
 
-		public String getFormattedDiscountPrice() {
-			return formattedDiscountPrice;
-		}
-
-		public void setFormattedDiscountPrice(String formattedDiscountPrice) {
-			this.formattedDiscountPrice = formattedDiscountPrice;
-		}
+	public String getFormattedPrice() {
+		return formattedPrice;
 	}
 
+	public void setFormattedPrice(String formattedPrice) {
+		this.formattedPrice = formattedPrice;
+	}
+
+	@Transient
+	private String formattedDiscountPrice; // Định dạng giá giảm giá hiển thị.
+
+	public String getFormattedDiscountPrice() {
+		return formattedDiscountPrice;
+	}
+
+	public void setFormattedDiscountPrice(String formattedDiscountPrice) {
+		this.formattedDiscountPrice = formattedDiscountPrice;
+	}
+}

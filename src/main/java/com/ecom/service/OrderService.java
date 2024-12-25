@@ -1,20 +1,21 @@
 package com.ecom.service;
 
-import java.util.List;
-
+import com.ecom.model.Orders;
 import org.springframework.data.domain.Page;
 
+
+import java.util.List;
+
 public interface OrderService {
+	void saveOrder(Integer customerId, Orders order) throws Exception;
 
-	public void saveOrder(Integer userid, OrderRequest orderRequest) throws Exception;
+	List<Orders> getOrdersByCustomer(Integer customerId);
 
-	public List<ProductOrder> getOrdersByUser(Integer userId);
+	Orders updateOrderStatus(Integer orderId, Integer statusId);
 
-	public ProductOrder updateOrderStatus(Integer id, String status);
+	List<Orders> getAllOrders();
 
-	public List<ProductOrder> getAllOrders();
+	Orders getOrdersByOrderId(String orderId);
 
-	public ProductOrder getOrdersByOrderId(String orderId);
-	
-	public Page<ProductOrder> getAllOrdersPagination(Integer pageNo,Integer pageSize);
+	Page<Orders> getAllOrdersPagination(Integer pageNo, Integer pageSize);
 }

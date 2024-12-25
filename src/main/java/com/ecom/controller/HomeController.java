@@ -11,6 +11,9 @@ import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 
+import com.ecom.model.Customer;
+import com.ecom.model.Employees;
+import com.ecom.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
@@ -27,10 +30,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.ecom.model.Category;
 import com.ecom.model.Product;
-import com.ecom.service.CartService;
-import com.ecom.service.CategoryService;
-import com.ecom.service.ProductService;
-import com.ecom.service.CustomerService;
 import com.ecom.util.CommonUtil;
 
 import io.micrometer.common.util.StringUtils;
@@ -52,6 +51,8 @@ public class HomeController {
 
 	@Autowired
 	private CommonUtil commonUtil;
+	@Autowired
+	private EmployeesService employeesService;
 
 	@Autowired
 	private BCryptPasswordEncoder passwordEncoder;
@@ -60,17 +61,25 @@ public class HomeController {
 	private CartService cartService;
 
 	@ModelAttribute
-	public void getUserDetails(Principal p, Model m) {
-		if (p != null) {
-			String email = p.getName();
-			UserDtls userDtls = customerService.getUserByEmail(email);
-			m.addAttribute("user", userDtls);
-			Integer countCart = cartService.getCountCart(userDtls.getId());
-			m.addAttribute("countCart", countCart);
+	public void getUserDetails(Principal principal, Model model) {
+		if (principal != null) {
+			// Lấy email từ đối tượng Principal
+			String email = principal.getName();
+
+			// Lấy thông tin khách hàng dựa trên email
+			Customer customer = customerService.getCustomerByEmail(email);
+			if (customer != null) {
+				model.addAttribute("user", customer);
+
+				// Đếm số lượng sản phẩm trong giỏ hàng
+				Integer cartItemCount = cartService.getCountCart(customer.getId());
+				model.addAttribute("countCart", cartItemCount);
+			}
 		}
 
-		List<Category> allActiveCategory = categoryService.getAllActiveCategory();
-		m.addAttribute("categorys", allActiveCategory);
+		// Lấy danh sách tất cả các danh mục đang hoạt động
+		List<Category> activeCategories = categoryService.getAllActiveCategory();
+		model.addAttribute("categories", activeCategories);
 	}
 
 	@GetMapping("/")
@@ -145,37 +154,42 @@ public class HomeController {
 	}
 
 
-	@PostMapping("/saveUser")
-	public String saveUser(@ModelAttribute UserDtls user, @RequestParam("img") MultipartFile file, HttpSession session)
-			throws IOException {
+	@PostMapping("/saveEmployee")
+	public String saveEmployee(
+			@ModelAttribute Employees employee,
+			@RequestParam("img") MultipartFile file,
+			HttpSession session) throws IOException {
 
-		Boolean existsEmail = customerService.existsEmail(user.getEmail());
-
+		// Kiểm tra email đã tồn tại hay chưa
+		boolean existsEmail = employeesService.existsEmail(employee.getEmail());
 		if (existsEmail) {
-			session.setAttribute("errorMsg", "Email already exist");
-		} else {
-			String imageName = file.isEmpty() ? "default.jpg" : file.getOriginalFilename();
-			user.setProfileImage(imageName);
-			UserDtls saveUser = customerService.saveUser(user);
+			session.setAttribute("errorMsg", "Email đã tồn tại!");
+			return "redirect:/register";
+		}
 
-			if (!ObjectUtils.isEmpty(saveUser)) {
-				if (!file.isEmpty()) {
-					File saveFile = new ClassPathResource("static/img").getFile();
+		// Xử lý ảnh đại diện
+		String imageName = file.isEmpty() ? "default.jpg" : file.getOriginalFilename();
+		employee.setProfileImage(imageName);
 
-					Path path = Paths.get(saveFile.getAbsolutePath() + File.separator + "profile_img" + File.separator
-							+ file.getOriginalFilename());
+		// Lưu thông tin nhân viên
+		Employees savedEmployee = employeesService.saveEmployee(employee);
 
-//					System.out.println(path);
-					Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
-				}
-				session.setAttribute("succMsg", "Register successfully");
-			} else {
-				session.setAttribute("errorMsg", "something wrong on server");
+		if (savedEmployee != null) {
+			// Lưu ảnh vào thư mục nếu có ảnh tải lên
+			if (!file.isEmpty()) {
+				File saveFile = new ClassPathResource("static/img").getFile();
+				Path path = Paths.get(
+						saveFile.getAbsolutePath() + File.separator + "profile_img" + File.separator + imageName);
+				Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
 			}
+			session.setAttribute("succMsg", "Đăng ký thành công!");
+		} else {
+			session.setAttribute("errorMsg", "Có lỗi xảy ra trên máy chủ.");
 		}
 
 		return "redirect:/register";
 	}
+
 
 //	Forgot Password Code 
 
@@ -185,29 +199,31 @@ public class HomeController {
 	}
 
 	@PostMapping("/forgot-password")
-	public String processForgotPassword(@RequestParam String email, HttpSession session, HttpServletRequest request)
-			throws UnsupportedEncodingException, MessagingException {
+	public String processForgotPassword(
+			@RequestParam String email,
+			HttpSession session,
+			HttpServletRequest request) throws UnsupportedEncodingException, MessagingException {
 
-		UserDtls userByEmail = customerService.getUserByEmail(email);
+		// Tìm nhân viên theo email
+		Employees employeeByEmail = employeesService.getEmployeeByEmail(email);
 
-		if (ObjectUtils.isEmpty(userByEmail)) {
+		if (employeeByEmail == null) {
 			session.setAttribute("errorMsg", "Invalid email");
 		} else {
-
+			// Tạo token đặt lại mật khẩu
 			String resetToken = UUID.randomUUID().toString();
-			customerService.updateUserResetToken(email, resetToken);
+			employeesService.updateEmployeeResetToken(email, resetToken);
 
-			// Generate URL :
-			// http://localhost:8080/reset-password?token=sfgdbgfswegfbdgfewgvsrg
-
+			// Tạo đường dẫn URL để đặt lại mật khẩu
 			String url = CommonUtil.generateUrl(request) + "/reset-password?token=" + resetToken;
 
+			// Gửi email chứa liên kết đặt lại mật khẩu
 			Boolean sendMail = commonUtil.sendMail(url, email);
 
 			if (sendMail) {
-				session.setAttribute("succMsg", "Please check your email..Password Reset link sent");
+				session.setAttribute("succMsg", "Please check your email. Password reset link sent.");
 			} else {
-				session.setAttribute("errorMsg", "Somethong wrong on server ! Email not send");
+				session.setAttribute("errorMsg", "Something went wrong on the server! Email not sent.");
 			}
 		}
 
@@ -215,37 +231,43 @@ public class HomeController {
 	}
 
 	@GetMapping("/reset-password")
-	public String showResetPassword(@RequestParam String token, HttpSession session, Model m) {
+	public String showResetPassword(@RequestParam String token, HttpSession session, Model model) {
 
-		UserDtls userByToken = customerService.getUserByToken(token);
+		// Lấy nhân viên theo token
+		Employees employeeByToken = employeesService.getEmployeeByToken(token);
 
-		if (userByToken == null) {
-			m.addAttribute("msg", "Your link is invalid or expired !!");
+		if (employeeByToken == null) {
+			model.addAttribute("msg", "Your link is invalid or expired!!");
 			return "message";
 		}
-		m.addAttribute("token", token);
+		model.addAttribute("token", token);
 		return "reset_password";
 	}
 
 	@PostMapping("/reset-password")
-	public String resetPassword(@RequestParam String token, @RequestParam String password, HttpSession session,
-			Model m) {
+	public String resetPassword(
+			@RequestParam String token,
+			@RequestParam String password,
+			HttpSession session,
+			Model model) {
 
-		UserDtls userByToken = customerService.getUserByToken(token);
-		if (userByToken == null) {
-			m.addAttribute("errorMsg", "Your link is invalid or expired !!");
+		// Lấy nhân viên theo token
+		Employees employeeByToken = employeesService.getEmployeeByToken(token);
+
+		if (employeeByToken == null) {
+			model.addAttribute("errorMsg", "Your link is invalid or expired!!");
 			return "message";
 		} else {
-			userByToken.setPassword(passwordEncoder.encode(password));
-			userByToken.setResetToken(null);
-			customerService.updateUser(userByToken);
-			// session.setAttribute("succMsg", "Password change successfully");
-			m.addAttribute("msg", "Password change successfully");
+			// Cập nhật mật khẩu mới và xóa token
+			employeeByToken.setPassword(passwordEncoder.encode(password));
+			employeeByToken.setResetToken(null);
+			employeesService.saveEmployee(employeeByToken);
 
+			model.addAttribute("msg", "Password changed successfully.");
 			return "message";
 		}
-
 	}
+
 
 	@GetMapping("/search")
 	public String searchProduct(@RequestParam String ch, Model m) {

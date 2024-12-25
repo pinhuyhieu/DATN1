@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.Principal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.ecom.model.*;
@@ -30,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.ecom.util.CommonUtil;
-import com.ecom.util.OrderStatus;
 
 import jakarta.servlet.http.HttpSession;
 
@@ -53,7 +53,11 @@ public class AdminController {
 
 	@Autowired
 	private OrderService orderService;
+	@Autowired
+	private OrderStatusService orderStatusService;
 
+	@Autowired
+	private EmployeesService employeesService;
 	@Autowired
 	private CommonUtil commonUtil;
 
@@ -61,18 +65,27 @@ public class AdminController {
 	private PasswordEncoder passwordEncoder;
 
 	@ModelAttribute
-	public void getUserDetails(Principal p, Model m) {
-		if (p != null) {
-			String email = p.getName();
-			UserDtls userDtls = customerService.getUserByEmail(email);
-			m.addAttribute("user", userDtls);
-			Integer countCart = cartService.getCountCart(userDtls.getId());
-			m.addAttribute("countCart", countCart);
+	public void getUserDetails(Principal principal, Model model) {
+		if (principal != null) {
+			// Lấy email từ đối tượng Principal
+			String email = principal.getName();
+
+			// Lấy thông tin khách hàng dựa trên email
+			Customer customer = customerService.getCustomerByEmail(email);
+			if (customer != null) {
+				model.addAttribute("user", customer);
+
+				// Đếm số lượng sản phẩm trong giỏ hàng
+				Integer cartItemCount = cartService.getCountCart(customer.getId());
+				model.addAttribute("countCart", cartItemCount);
+			}
 		}
 
-		List<Category> allActiveCategory = categoryService.getAllActiveCategory();
-		m.addAttribute("categorys", allActiveCategory);
+		// Lấy danh sách tất cả các danh mục đang hoạt động
+		List<Category> activeCategories = categoryService.getAllActiveCategory();
+		model.addAttribute("categories", activeCategories);
 	}
+
 
 	@GetMapping("/")
 	public String index() {
@@ -185,39 +198,45 @@ public class AdminController {
 
 	@PostMapping("/updateCategory")
 	public String updateCategory(@ModelAttribute Category category, @RequestParam("file") MultipartFile file,
-			HttpSession session) throws IOException {
+								 HttpSession session) throws IOException {
 
-		Category oldCategory = categoryService.getCategoryById(category.getId());
-		String imageName = file.isEmpty() ? oldCategory.getImageName() : file.getOriginalFilename();
+		// Tìm kiếm danh mục cũ theo ID
+		Optional<Category> optionalCategory = categoryService.getCategoryById(category.getId());
 
-		if (!ObjectUtils.isEmpty(category)) {
-
-			oldCategory.setName(category.getName());
-			oldCategory.setIsActive(category.getIsActive());
-			oldCategory.setImageName(imageName);
+		if (!optionalCategory.isPresent()) {
+			session.setAttribute("errorMsg", "Category not found with ID: " + category.getId());
+			return "redirect:/admin/loadEditCategory/" + category.getId();
 		}
 
-		Category updateCategory = categoryService.saveCategory(oldCategory);
+		// Lấy thông tin danh mục cũ
+		Category oldCategory = optionalCategory.get();
 
-		if (!ObjectUtils.isEmpty(updateCategory)) {
+		String imageName = file.isEmpty() ? oldCategory.getImageName() : file.getOriginalFilename();
 
+		// Cập nhật thông tin danh mục
+		oldCategory.setName(category.getName());
+		oldCategory.setIsActive(category.getIsActive());
+		oldCategory.setImageName(imageName);
+
+		// Lưu danh mục đã cập nhật
+		Category updatedCategory = categoryService.saveCategory(oldCategory);
+
+		if (!ObjectUtils.isEmpty(updatedCategory)) {
+			// Lưu tệp hình ảnh nếu có
 			if (!file.isEmpty()) {
 				File saveFile = new ClassPathResource("static/img").getFile();
-
 				Path path = Paths.get(saveFile.getAbsolutePath() + File.separator + "category_img" + File.separator
 						+ file.getOriginalFilename());
-
-				// System.out.println(path);
 				Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
 			}
-
 			session.setAttribute("succMsg", "Category update success");
 		} else {
-			session.setAttribute("errorMsg", "something wrong on server");
+			session.setAttribute("errorMsg", "Something went wrong on server");
 		}
 
 		return "redirect:/admin/loadEditCategory/" + category.getId();
 	}
+
 
 	@PostMapping("/saveProduct")
 	public String saveProduct(
@@ -231,17 +250,23 @@ public class AdminController {
 			return "redirect:/admin/loadAddProduct";
 		}
 
-		// Tiếp tục xử lý logic lưu sản phẩm
+		// Nếu không có hình ảnh, sử dụng mặc định
 		String imageName = image.isEmpty() ? "default.jpg" : image.getOriginalFilename();
 		product.setImage(imageName);
-		product.setDiscount(0);
-		product.setDiscountPrice(product.getPrice());
-		Product saveProduct = productService.saveProduct(product);
 
-		if (saveProduct != null) {
-			File saveFile = new ClassPathResource("static/img").getFile();
-			Path path = Paths.get(saveFile.getAbsolutePath() + File.separator + "product_img" + File.separator + imageName);
-			Files.copy(image.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
+		// Tính toán giá sau giảm giá
+		product.setDiscountPrice(product.getPrice() - (product.getPrice() * product.getDiscount() / 100));
+
+		// Gọi phương thức saveProduct với cả đối tượng Product và MultipartFile
+		Product savedProduct = productService.saveProduct(product, image);
+
+		if (savedProduct != null) {
+			if (!image.isEmpty()) {
+				// Lưu tệp hình ảnh
+				File saveFile = new ClassPathResource("static/img").getFile();
+				Path path = Paths.get(saveFile.getAbsolutePath() + File.separator + "product_img" + File.separator + imageName);
+				Files.copy(image.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
+			}
 			session.setAttribute("succMsg", "Lưu sản phẩm thành công!");
 		} else {
 			session.setAttribute("errorMsg", "Có lỗi xảy ra trong quá trình lưu sản phẩm.");
@@ -249,6 +274,7 @@ public class AdminController {
 
 		return "redirect:/admin/loadAddProduct";
 	}
+
 
 
 	@GetMapping("/products")
@@ -310,7 +336,7 @@ public class AdminController {
 		if (product.getDiscount() < 0 || product.getDiscount() > 100) {
 			session.setAttribute("errorMsg", "invalid Discount");
 		} else {
-			Product updateProduct = productService.updateProduct(product, image);
+			Product updateProduct = productService.updateProduct(product.getId(),product, image);
 			if (!ObjectUtils.isEmpty(updateProduct)) {
 				session.setAttribute("succMsg", "Product update success");
 			} else {
@@ -322,11 +348,11 @@ public class AdminController {
 
 	@GetMapping("/users")
 	public String getAllUsers(Model m, @RequestParam Integer type) {
-		List<UserDtls> users = null;
+		List<Customer> users = null;
 		if (type == 1) {
-			users = customerService.getUsers("ROLE_USER");
+			users = customerService.getCustomers("ROLE_USER");
 		} else {
-			users = customerService.getUsers("ROLE_ADMIN");
+			users = customerService.getCustomers("ROLE_ADMIN");
 		}
 		m.addAttribute("userType",type);
 		m.addAttribute("users", users);
@@ -351,7 +377,7 @@ public class AdminController {
 //		m.addAttribute("orders", allOrders);
 //		m.addAttribute("srch", false);
 
-		Page<ProductOrder> page = orderService.getAllOrdersPagination(pageNo, pageSize);
+		Page<Orders> page = orderService.getAllOrdersPagination(pageNo, pageSize);
 
 
 		m.addAttribute("orders", page.getContent());
@@ -368,30 +394,34 @@ public class AdminController {
 	}
 
 	@PostMapping("/update-order-status")
-	public String updateOrderStatus(@RequestParam Integer id, @RequestParam Integer st, HttpSession session) {
+	public String updateOrderStatus(@RequestParam Integer id, @RequestParam Integer statusId, HttpSession session) {
 
-		OrderStatus[] values = OrderStatus.values();
-		String status = null;
-
-		for (OrderStatus orderSt : values) {
-			if (orderSt.getId().equals(st)) {
-				status = orderSt.getName();
-			}
+		// Lấy trạng thái đơn hàng từ Service
+		Optional<OrderStatus> optionalStatus = orderStatusService.getOrderStatusById(statusId);
+		if (!optionalStatus.isPresent()) {
+			session.setAttribute("errorMsg", "Invalid order status ID.");
+			return "redirect:/admin/orders";
 		}
 
-		ProductOrder updateOrder = orderService.updateOrderStatus(id, status);
+		OrderStatus orderStatus = optionalStatus.get();
 
+		// Cập nhật trạng thái đơn hàng
+		Orders updatedOrder = orderService.updateOrderStatus(id, statusId);
+
+		// Gửi email thông báo (nếu cần)
 		try {
-			commonUtil.sendMailForProductOrder(updateOrder, status);
+			commonUtil.sendMailForOrder(updatedOrder, orderStatus.getStatusName());
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 
-		if (!ObjectUtils.isEmpty(updateOrder)) {
-			session.setAttribute("succMsg", "Status Updated");
+		// Thông báo kết quả
+		if (!ObjectUtils.isEmpty(updatedOrder)) {
+			session.setAttribute("succMsg", "Order status updated successfully.");
 		} else {
-			session.setAttribute("errorMsg", "status not updated");
+			session.setAttribute("errorMsg", "Failed to update order status.");
 		}
+
 		return "redirect:/admin/orders";
 	}
 
@@ -402,7 +432,7 @@ public class AdminController {
 
 		if (orderId != null && orderId.length() > 0) {
 
-			ProductOrder order = orderService.getOrdersByOrderId(orderId.trim());
+			Orders order = orderService.getOrdersByOrderId(orderId.trim());
 
 			if (ObjectUtils.isEmpty(order)) {
 				session.setAttribute("errorMsg", "Incorrect orderId");
@@ -417,7 +447,7 @@ public class AdminController {
 //			m.addAttribute("orders", allOrders);
 //			m.addAttribute("srch", false);
 
-			Page<ProductOrder> page = orderService.getAllOrdersPagination(pageNo, pageSize);
+			Page<Orders> page = orderService.getAllOrdersPagination(pageNo, pageSize);
 			m.addAttribute("orders", page);
 			m.addAttribute("srch", false);
 
@@ -439,28 +469,28 @@ public class AdminController {
 	}
 
 	@PostMapping("/save-admin")
-	public String saveAdmin(@ModelAttribute UserDtls user, @RequestParam("img") MultipartFile file, HttpSession session)
-			throws IOException {
+	public String saveAdmin(
+			@ModelAttribute Employees employee,
+			@RequestParam("img") MultipartFile file,
+			HttpSession session) throws IOException {
 
+		// Xử lý ảnh hồ sơ (nếu có)
 		String imageName = file.isEmpty() ? "default.jpg" : file.getOriginalFilename();
-		user.setProfileImage(imageName);
-		UserDtls saveUser = customerService.saveAdmin(user);
 
-		if (!ObjectUtils.isEmpty(saveUser)) {
+		employee.setRole("ROLE_ADMIN");
+		// Lưu nhân viên
+		Employees savedEmployee = employeesService.saveEmployee(employee);
+
+		if (savedEmployee != null) {
 			if (!file.isEmpty()) {
 				File saveFile = new ClassPathResource("static/img").getFile();
-
-				Path path = Paths.get(saveFile.getAbsolutePath() + File.separator + "profile_img" + File.separator
-						+ file.getOriginalFilename());
-
-//				System.out.println(path);
+				Path path = Paths.get(saveFile.getAbsolutePath() + File.separator + "profile_img" + File.separator + imageName);
 				Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
 			}
-			session.setAttribute("succMsg", "Register successfully");
+			session.setAttribute("succMsg", "Admin registered successfully.");
 		} else {
-			session.setAttribute("errorMsg", "something wrong on server");
+			session.setAttribute("errorMsg", "Error occurred while registering admin.");
 		}
-
 		return "redirect:/admin/add-admin";
 	}
 
@@ -470,36 +500,59 @@ public class AdminController {
 	}
 
 	@PostMapping("/update-profile")
-	public String updateProfile(@ModelAttribute UserDtls user, @RequestParam MultipartFile img, HttpSession session) {
-		UserDtls updateUserProfile = customerService.updateUserProfile(user, img);
-		if (ObjectUtils.isEmpty(updateUserProfile)) {
-			session.setAttribute("errorMsg", "Profile not updated");
+	public String updateProfile(
+			@ModelAttribute Employees employee,
+			@RequestParam("img") MultipartFile file,
+			HttpSession session) throws IOException {
+
+		// Lấy thông tin nhân viên hiện tại từ cơ sở dữ liệu
+		Employees existingEmployee = employeesService.getEmployeeById(employee.getId());
+
+		// Cập nhật thông tin cơ bản
+		existingEmployee.setFullName(employee.getFullName());
+		existingEmployee.setPhoneNumber(employee.getPhoneNumber());
+
+		// Nếu có file ảnh được tải lên, xử lý cập nhật ảnh
+		if (!file.isEmpty()) {
+			String imageName = file.getOriginalFilename();
+			existingEmployee.setProfileImage(imageName); // Gán tên ảnh vào thuộc tính profileImage
+
+			// Lưu file ảnh vào thư mục
+			File saveFile = new ClassPathResource("static/img").getFile();
+			Path path = Paths.get(saveFile.getAbsolutePath() + File.separator + "profile_img" + File.separator + imageName);
+			Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
+		}
+
+		// Lưu nhân viên cập nhật vào cơ sở dữ liệu
+		Employees updatedEmployee = employeesService.updateEmployee(employee,file);
+
+		if (updatedEmployee != null) {
+			session.setAttribute("succMsg", "Cập nhật thông tin thành công.");
 		} else {
-			session.setAttribute("succMsg", "Profile Updated");
+			session.setAttribute("errorMsg", "Không thể cập nhật thông tin.");
 		}
 		return "redirect:/admin/profile";
 	}
 
 	@PostMapping("/change-password")
-	public String changePassword(@RequestParam String newPassword, @RequestParam String currentPassword, Principal p,
+	public String changePassword(
+			@RequestParam String newPassword,
+			@RequestParam String currentPassword,
+			Principal principal,
 			HttpSession session) {
-		UserDtls loggedInUserDetails = commonUtil.getLoggedInUserDetails(p);
 
-		boolean matches = passwordEncoder.matches(currentPassword, loggedInUserDetails.getPassword());
+		// Lấy thông tin nhân viên đăng nhập từ email
+		Employees loggedInEmployee = employeesService.findByEmail(principal.getName());
 
-		if (matches) {
-			String encodePassword = passwordEncoder.encode(newPassword);
-			loggedInUserDetails.setPassword(encodePassword);
-			UserDtls updateUser = customerService.updateUser(loggedInUserDetails);
-			if (ObjectUtils.isEmpty(updateUser)) {
-				session.setAttribute("errorMsg", "Password not updated !! Error in server");
-			} else {
-				session.setAttribute("succMsg", "Password Updated sucessfully");
-			}
+		// Kiểm tra mật khẩu hiện tại
+		if (passwordEncoder.matches(currentPassword, loggedInEmployee.getPassword())) {
+			// Mã hóa và cập nhật mật khẩu mới
+			loggedInEmployee.setPassword(passwordEncoder.encode(newPassword));
+			employeesService.saveEmployee(loggedInEmployee);
+			session.setAttribute("succMsg", "Đổi mật khẩu thành công.");
 		} else {
-			session.setAttribute("errorMsg", "Current Password incorrect");
+			session.setAttribute("errorMsg", "Mật khẩu hiện tại không chính xác.");
 		}
-
 		return "redirect:/admin/profile";
 	}
 
