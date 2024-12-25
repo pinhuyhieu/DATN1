@@ -1,9 +1,6 @@
 package com.ecom.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -18,18 +15,18 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
+@Table(name = "category")
 public class Category {
-
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Integer id;
 
-	@NotBlank(message = "Tên danh mục không được để trống")
-	@Size(min = 3, max = 50, message = "Tên danh mục phải từ 3 đến 50 ký tự")
+	@Column(name = "name", nullable = false)
 	private String name;
 
-	private String imageName;
-
-	@NotNull(message = "Trạng thái không được để trống")
+	@Column(name = "is_active", nullable = false)
 	private Boolean isActive;
+
+	@Column(name = "image_name")
+	private String imageName;
 }

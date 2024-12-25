@@ -8,10 +8,9 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
 
-import com.ecom.model.UserDtls;
-import com.ecom.repository.UserRepository;
-import com.ecom.service.UserService;
-import com.ecom.service.impl.UserServiceImpl;
+import com.ecom.model.Customer;
+import com.ecom.repository.CustomerRepository;
+import com.ecom.service.CustomerService;
 import com.ecom.util.AppConstant;
 
 import jakarta.servlet.ServletException;
@@ -22,49 +21,50 @@ import jakarta.servlet.http.HttpServletResponse;
 public class AuthFailureHandlerImpl extends SimpleUrlAuthenticationFailureHandler {
 
 	@Autowired
-	private UserRepository userRepository;
+	private CustomerRepository customerRepository;
 
 	@Autowired
-	private UserService userService;
+	private CustomerService customerService;
 
 	@Override
 	public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
-			AuthenticationException exception) throws IOException, ServletException {
+										AuthenticationException exception) throws IOException, ServletException {
 
 		String email = request.getParameter("username");
 
-		UserDtls userDtls = userRepository.findByEmail(email);
+		// Tìm khách hàng bằng email
+		Customer customer = customerRepository.findByEmail(email);
 
-		if (userDtls != null) {
-
-			if (userDtls.getIsEnable()) {
-
-				if (userDtls.getAccountNonLocked()) {
-
-					if (userDtls.getFailedAttempt() < AppConstant.ATTEMPT_TIME) {
-						userService.increaseFailedAttempt(userDtls);
+		if (customer != null) {
+			if (customer.getIsEnable()) { // Kiểm tra tài khoản có được kích hoạt không
+				if (customer.getIsEnable()) { // Kiểm tra tài khoản có bị khóa không
+					if (customer.getFailedAttempt() < AppConstant.ATTEMPT_TIME) {
+						// Tăng số lần thất bại
+						customerService.increaseFailedAttempt(customer);
 					} else {
-						userService.userAccountLock(userDtls);
-						exception = new LockedException("Your account is locked !! failed attempt 3");
+						// Khóa tài khoản sau khi vượt số lần thất bại tối đa
+						customerService.customerAccountLock(customer);
+						exception = new LockedException("Your account is locked! Failed attempts: " + AppConstant.ATTEMPT_TIME);
 					}
 				} else {
-
-					if (userService.unlockAccountTimeExpired(userDtls)) {
-						exception = new LockedException("Your account is unlocked !! Please try to login");
+					// Nếu tài khoản bị khóa, kiểm tra thời gian hết hạn khóa
+					if (customerService.unlockAccountTimeExpired(customer)) {
+						exception = new LockedException("Your account is unlocked! Please try to login again.");
 					} else {
-						exception = new LockedException("your account is Locked !! Please try after sometimes");
+						exception = new LockedException("Your account is locked! Please try after some time.");
 					}
 				}
-
 			} else {
-				exception = new LockedException("your account is inactive");
+				// Tài khoản không hoạt động
+				exception = new LockedException("Your account is inactive.");
 			}
 		} else {
-			exception = new LockedException("Email & password invalid");
+			// Email không tồn tại trong hệ thống
+			exception = new LockedException("Invalid email or password.");
 		}
 
+		// Chuyển hướng đến trang đăng nhập với thông báo lỗi
 		super.setDefaultFailureUrl("/signin?error");
 		super.onAuthenticationFailure(request, response, exception);
 	}
-
 }

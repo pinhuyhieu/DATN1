@@ -18,10 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.ecom.model.Cart;
 import com.ecom.model.Category;
-import com.ecom.model.OrderRequest;
-import com.ecom.model.ProductOrder;
-import com.ecom.model.UserDtls;
-import com.ecom.repository.UserRepository;
 import com.ecom.util.CommonUtil;
 import com.ecom.util.OrderStatus;
 
@@ -31,7 +27,7 @@ import jakarta.servlet.http.HttpSession;
 @RequestMapping("/user")
 public class UserController {
 	@Autowired
-	private UserService userService;
+	private CustomerService customerService;
 	@Autowired
 	private CategoryService categoryService;
 
@@ -60,7 +56,7 @@ public class UserController {
 	public void getUserDetails(Principal p, Model m) {
 		if (p != null) {
 			String email = p.getName();
-			UserDtls userDtls = userService.getUserByEmail(email);
+			UserDtls userDtls = customerService.getUserByEmail(email);
 			m.addAttribute("user", userDtls);
 			Integer countCart = cartService.getCountCart(userDtls.getId());
 			m.addAttribute("countCart", countCart);
@@ -103,7 +99,7 @@ public class UserController {
 
 	private UserDtls getLoggedInUserDetails(Principal p) {
 		String email = p.getName();
-		UserDtls userDtls = userService.getUserByEmail(email);
+		UserDtls userDtls = customerService.getUserByEmail(email);
 		return userDtls;
 	}
 
@@ -217,7 +213,7 @@ public class UserController {
 
 	@PostMapping("/update-profile")
 	public String updateProfile(@ModelAttribute UserDtls user, @RequestParam MultipartFile img, HttpSession session) {
-		UserDtls updateUserProfile = userService.updateUserProfile(user, img);
+		UserDtls updateUserProfile = customerService.updateUserProfile(user, img);
 		if (ObjectUtils.isEmpty(updateUserProfile)) {
 			session.setAttribute("errorMsg", "Profile not updated");
 		} else {
@@ -236,7 +232,7 @@ public class UserController {
 		if (matches) {
 			String encodePassword = passwordEncoder.encode(newPassword);
 			loggedInUserDetails.setPassword(encodePassword);
-			UserDtls updateUser = userService.updateUser(loggedInUserDetails);
+			UserDtls updateUser = customerService.updateUser(loggedInUserDetails);
 			if (ObjectUtils.isEmpty(updateUser)) {
 				session.setAttribute("errorMsg", "Password not updated !! Error in server");
 			} else {

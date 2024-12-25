@@ -46,7 +46,7 @@ public class AdminController {
 	private ProductService productService;
 
 	@Autowired
-	private UserService userService;
+	private CustomerService customerService;
 
 	@Autowired
 	private CartService cartService;
@@ -64,7 +64,7 @@ public class AdminController {
 	public void getUserDetails(Principal p, Model m) {
 		if (p != null) {
 			String email = p.getName();
-			UserDtls userDtls = userService.getUserByEmail(email);
+			UserDtls userDtls = customerService.getUserByEmail(email);
 			m.addAttribute("user", userDtls);
 			Integer countCart = cartService.getCountCart(userDtls.getId());
 			m.addAttribute("countCart", countCart);
@@ -324,9 +324,9 @@ public class AdminController {
 	public String getAllUsers(Model m, @RequestParam Integer type) {
 		List<UserDtls> users = null;
 		if (type == 1) {
-			users = userService.getUsers("ROLE_USER");
+			users = customerService.getUsers("ROLE_USER");
 		} else {
-			users = userService.getUsers("ROLE_ADMIN");
+			users = customerService.getUsers("ROLE_ADMIN");
 		}
 		m.addAttribute("userType",type);
 		m.addAttribute("users", users);
@@ -335,7 +335,7 @@ public class AdminController {
 
 	@GetMapping("/updateSts")
 	public String updateUserAccountStatus(@RequestParam Boolean status, @RequestParam Integer id,@RequestParam Integer type, HttpSession session) {
-		Boolean f = userService.updateAccountStatus(id, status);
+		Boolean f = customerService.updateAccountStatus(id, status);
 		if (f) {
 			session.setAttribute("succMsg", "Account Status Updated");
 		} else {
@@ -444,7 +444,7 @@ public class AdminController {
 
 		String imageName = file.isEmpty() ? "default.jpg" : file.getOriginalFilename();
 		user.setProfileImage(imageName);
-		UserDtls saveUser = userService.saveAdmin(user);
+		UserDtls saveUser = customerService.saveAdmin(user);
 
 		if (!ObjectUtils.isEmpty(saveUser)) {
 			if (!file.isEmpty()) {
@@ -471,7 +471,7 @@ public class AdminController {
 
 	@PostMapping("/update-profile")
 	public String updateProfile(@ModelAttribute UserDtls user, @RequestParam MultipartFile img, HttpSession session) {
-		UserDtls updateUserProfile = userService.updateUserProfile(user, img);
+		UserDtls updateUserProfile = customerService.updateUserProfile(user, img);
 		if (ObjectUtils.isEmpty(updateUserProfile)) {
 			session.setAttribute("errorMsg", "Profile not updated");
 		} else {
@@ -490,7 +490,7 @@ public class AdminController {
 		if (matches) {
 			String encodePassword = passwordEncoder.encode(newPassword);
 			loggedInUserDetails.setPassword(encodePassword);
-			UserDtls updateUser = userService.updateUser(loggedInUserDetails);
+			UserDtls updateUser = customerService.updateUser(loggedInUserDetails);
 			if (ObjectUtils.isEmpty(updateUser)) {
 				session.setAttribute("errorMsg", "Password not updated !! Error in server");
 			} else {

@@ -9,9 +9,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.Principal;
 import java.util.List;
-import java.util.Random;
 import java.util.UUID;
-import java.util.stream.Collector;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
@@ -29,11 +27,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.ecom.model.Category;
 import com.ecom.model.Product;
-import com.ecom.model.UserDtls;
 import com.ecom.service.CartService;
 import com.ecom.service.CategoryService;
 import com.ecom.service.ProductService;
-import com.ecom.service.UserService;
+import com.ecom.service.CustomerService;
 import com.ecom.util.CommonUtil;
 
 import io.micrometer.common.util.StringUtils;
@@ -51,7 +48,7 @@ public class HomeController {
 	private ProductService productService;
 
 	@Autowired
-	private UserService userService;
+	private CustomerService customerService;
 
 	@Autowired
 	private CommonUtil commonUtil;
@@ -66,7 +63,7 @@ public class HomeController {
 	public void getUserDetails(Principal p, Model m) {
 		if (p != null) {
 			String email = p.getName();
-			UserDtls userDtls = userService.getUserByEmail(email);
+			UserDtls userDtls = customerService.getUserByEmail(email);
 			m.addAttribute("user", userDtls);
 			Integer countCart = cartService.getCountCart(userDtls.getId());
 			m.addAttribute("countCart", countCart);
@@ -152,14 +149,14 @@ public class HomeController {
 	public String saveUser(@ModelAttribute UserDtls user, @RequestParam("img") MultipartFile file, HttpSession session)
 			throws IOException {
 
-		Boolean existsEmail = userService.existsEmail(user.getEmail());
+		Boolean existsEmail = customerService.existsEmail(user.getEmail());
 
 		if (existsEmail) {
 			session.setAttribute("errorMsg", "Email already exist");
 		} else {
 			String imageName = file.isEmpty() ? "default.jpg" : file.getOriginalFilename();
 			user.setProfileImage(imageName);
-			UserDtls saveUser = userService.saveUser(user);
+			UserDtls saveUser = customerService.saveUser(user);
 
 			if (!ObjectUtils.isEmpty(saveUser)) {
 				if (!file.isEmpty()) {
@@ -191,14 +188,14 @@ public class HomeController {
 	public String processForgotPassword(@RequestParam String email, HttpSession session, HttpServletRequest request)
 			throws UnsupportedEncodingException, MessagingException {
 
-		UserDtls userByEmail = userService.getUserByEmail(email);
+		UserDtls userByEmail = customerService.getUserByEmail(email);
 
 		if (ObjectUtils.isEmpty(userByEmail)) {
 			session.setAttribute("errorMsg", "Invalid email");
 		} else {
 
 			String resetToken = UUID.randomUUID().toString();
-			userService.updateUserResetToken(email, resetToken);
+			customerService.updateUserResetToken(email, resetToken);
 
 			// Generate URL :
 			// http://localhost:8080/reset-password?token=sfgdbgfswegfbdgfewgvsrg
@@ -220,7 +217,7 @@ public class HomeController {
 	@GetMapping("/reset-password")
 	public String showResetPassword(@RequestParam String token, HttpSession session, Model m) {
 
-		UserDtls userByToken = userService.getUserByToken(token);
+		UserDtls userByToken = customerService.getUserByToken(token);
 
 		if (userByToken == null) {
 			m.addAttribute("msg", "Your link is invalid or expired !!");
@@ -234,14 +231,14 @@ public class HomeController {
 	public String resetPassword(@RequestParam String token, @RequestParam String password, HttpSession session,
 			Model m) {
 
-		UserDtls userByToken = userService.getUserByToken(token);
+		UserDtls userByToken = customerService.getUserByToken(token);
 		if (userByToken == null) {
 			m.addAttribute("errorMsg", "Your link is invalid or expired !!");
 			return "message";
 		} else {
 			userByToken.setPassword(passwordEncoder.encode(password));
 			userByToken.setResetToken(null);
-			userService.updateUser(userByToken);
+			customerService.updateUser(userByToken);
 			// session.setAttribute("succMsg", "Password change successfully");
 			m.addAttribute("msg", "Password change successfully");
 

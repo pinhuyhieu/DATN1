@@ -1,19 +1,9 @@
-package com.ecom.service.impl;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.util.ObjectUtils;
-
 import com.ecom.model.Cart;
-import com.ecom.model.Product;
-import com.ecom.model.UserDtls;
+import com.ecom.model.Customer;
 import com.ecom.repository.CartRepository;
 import com.ecom.repository.ProductRepository;
-import com.ecom.repository.UserRepository;
-import com.ecom.service.CartService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 @Service
 public class CartServiceImpl implements CartService {
@@ -22,94 +12,95 @@ public class CartServiceImpl implements CartService {
 	private CartRepository cartRepository;
 
 	@Autowired
-	private UserRepository userRepository;
+	private CustomerRepository customerRepository;
 
 	@Autowired
 	private ProductRepository productRepository;
 
 	@Override
-	public Cart saveCart(Integer productId, Integer userId) {
+	public Cart saveCart(Integer productId, Integer customerId) {
+		// Kiểm tra Customer
+		Customer customer = customerRepository.findById(customerId)
+				.orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + customerId));
 
-		UserDtls userDtls = userRepository.findById(userId).orElseThrow(() ->
-				new RuntimeException("Không tìm thấy người dùng với ID: " + userId));
-		Product product = productRepository.findById(productId).orElseThrow(() ->
-				new RuntimeException("Không tìm thấy sản phẩm với ID: " + productId));
+		// Kiểm tra Product
+		Product product = productRepository.findById(productId)
+				.orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm với ID: " + productId));
 
-		Cart cartStatus = cartRepository.findByProductIdAndUserId(productId, userId);
+		// Tìm sản phẩm trong giỏ hàng
+		Cart existingCart = cartRepository.findByProductIdAndCustomerId(productId, customerId);
 
-		Cart cart;
+		// Xử lý thêm mới hoặc cập nhật giỏ hàng
+		Cart cart = (existingCart == null) ? new Cart() : existingCart;
 
-		if (ObjectUtils.isEmpty(cartStatus)) {
-			// Kiểm tra tồn kho trước khi thêm sản phẩm mới vào giỏ
+		if (cart.getId() == null) { // Nếu giỏ hàng chưa tồn tại
 			if (product.getStock() < 1) {
 				throw new RuntimeException("Sản phẩm " + product.getTitle() + " đã hết hàng.");
 			}
-			cart = new Cart();
+			cart.setCustomer(customer);
 			cart.setProduct(product);
-			cart.setUser(userDtls);
 			cart.setQuantity(1);
-			cart.setTotalPrice(1 * product.getDiscountPrice());
-		} else {
-			// Kiểm tra tồn kho khi tăng số lượng trong giỏ hàng
-			if (cartStatus.getQuantity() + 1 > product.getStock()) {
+		} else { // Nếu giỏ hàng đã tồn tại
+			if (cart.getQuantity() + 1 > product.getStock()) {
 				throw new RuntimeException("Không đủ số lượng tồn kho cho sản phẩm " + product.getTitle());
 			}
-			cart = cartStatus;
 			cart.setQuantity(cart.getQuantity() + 1);
-			cart.setTotalPrice(cart.getQuantity() * cart.getProduct().getDiscountPrice());
 		}
 
-		// Lưu thông tin giỏ hàng vào cơ sở dữ liệu
+		// Tính tổng giá
+		cart.setTotalPrice(cart.getQuantity() * product.getDiscountPrice());
+
+		// Lưu giỏ hàng
 		return cartRepository.save(cart);
 	}
 
-
 	@Override
-	public List<Cart> getCartsByUser(Integer userId) {
-		List<Cart> carts = cartRepository.findByUserId(userId);
-
+	public List<Cart> getCartsByCustomer(Integer customerId) {
+		List<Cart> carts = cartRepository.findByCustomerId(customerId);
 		Double totalOrderPrice = 0.0;
-		List<Cart> updateCarts = new ArrayList<>();
-		for (Cart c : carts) {
-			Double totalPrice = (c.getProduct().getDiscountPrice() * c.getQuantity());
-			c.setTotalPrice(totalPrice);
-			totalOrderPrice = totalOrderPrice + totalPrice;
-			c.setTotalOrderPrice(totalOrderPrice);
-			updateCarts.add(c);
+
+		for (Cart cart : carts) {
+			Double totalPrice = cart.getProduct().getDiscountPrice() * cart.getQuantity();
+			cart.setTotalPrice(totalPrice);
+			totalOrderPrice += totalPrice;
+			cart.setTotalOrderPrice(totalOrderPrice); // Tổng giá trị giỏ hàng
 		}
 
-		return updateCarts;
+		return carts;
 	}
 
 	@Override
-	public Integer getCountCart(Integer userId) {
-		Integer countByUserId = cartRepository.countByUserId(userId);
-		return countByUserId;
+	public Integer getCountCart(Integer customerId) {
+		return cartRepository.countByCustomerId(customerId);
 	}
 
 	@Override
-	public void updateQuantity(String sy, Integer cid) {
+	public void updateQuantity(String action, Integer cartId) {
+		Cart cart = cartRepository.findById(cartId)
+				.orElseThrow(() -> new RuntimeException("Không tìm thấy giỏ hàng với ID: " + cartId));
 
-		Cart cart = cartRepository.findById(cid).get();
-		int updateQuantity;
+		int updatedQuantity = cart.getQuantity();
 
-		if (sy.equalsIgnoreCase("de")) {
-			updateQuantity = cart.getQuantity() - 1;
-
-			if (updateQuantity <= 0) {
+		if ("decrease".equalsIgnoreCase(action)) {
+			updatedQuantity -= 1;
+			if (updatedQuantity <= 0) {
 				cartRepository.delete(cart);
-			} else {
-				cart.setQuantity(updateQuantity);
-				cartRepository.save(cart);
+				return;
 			}
-
-		} else {
-			updateQuantity = cart.getQuantity() + 1;
-			cart.setQuantity(updateQuantity);
-			cartRepository.save(cart);
+		} else if ("increase".equalsIgnoreCase(action)) {
+			if (updatedQuantity + 1 > cart.getProduct().getStock()) {
+				throw new RuntimeException("Không đủ số lượng tồn kho.");
+			}
+			updatedQuantity += 1;
 		}
 
+		cart.setQuantity(updatedQuantity);
+		cart.setTotalPrice(updatedQuantity * cart.getProduct().getDiscountPrice());
+		cartRepository.save(cart);
 	}
 
-
+	@Override
+	public void removeCart(Integer cartId) {
+		cartRepository.deleteById(cartId);
+	}
 }

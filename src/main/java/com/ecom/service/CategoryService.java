@@ -1,26 +1,51 @@
 package com.ecom.service;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import com.ecom.model.Category;
 
 public interface CategoryService {
 
-	public Category saveCategory(Category category);
+	/**
+	 * Thêm mới hoặc cập nhật danh mục
+	 */
+	Category saveCategory(Category category);
 
-	public Boolean existCategory(String name);
+	/**
+	 * Kiểm tra danh mục có tồn tại theo tên hay không
+	 */
+	Boolean existCategory(String name);
 
-	public List<Category> getAllCategory();
+	/**
+	 * Lấy danh sách tất cả danh mục
+	 */
+	List<Category> getAllCategory();
 
-	public Boolean deleteCategory(int id);
+	/**
+	 * Lấy danh sách danh mục đang hoạt động
+	 */
+	List<Category> getAllActiveCategory();
 
-	public Category getCategoryById(int id);
+	/**
+	 * Xóa danh mục theo ID
+	 */
+	Boolean deleteCategory(int id);
 
-	public List<Category> getAllActiveCategory();
+	/**
+	 * Lấy danh mục theo ID
+	 */
+	Optional<Category> getCategoryById(int id);
 
-	public Page<Category> getAllCategorPagination(Integer pageNo,Integer pageSize);
+	/**
+	 * Phân trang danh mục
+	 */
+	Page<Category> getAllCategorPagination(Integer pageNo, Integer pageSize);
 
+	/**
+	 * Cập nhật danh mục
+	 */
+	Category updateCategory(int id, Category category);
 }

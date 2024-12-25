@@ -13,49 +13,55 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
+@Table(name = "product")
 public class Product {
+		@Id
+		@GeneratedValue(strategy = GenerationType.IDENTITY)
+		private Integer id;
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Integer id;
+		@Column(name = "title", nullable = false)
+		private String title;
 
-	@Column(length = 500)
-	private String title;
+		@Column(name = "description")
+		private String description;
 
-	@Column(length = 5000)
-	private String description;
+		@Column(name = "price", nullable = false)
+		private Double price;
 
-	private String category;
+		@Column(name = "discount_price")
+		private Double discountPrice;
 
-	private Double price;
-	@NotNull(message = "Số lượng không được để trống.")
-	@Min(value = 0, message = "Số lượng phải là số nguyên dương.")
-	private int stock;
+		@Column(name = "stock", nullable = false)
+		private Integer stock;
 
-	private String image;
+		@Column(name = "is_active", nullable = false)
+		private Boolean isActive;
 
-	private int discount;
-	
-	private Double discountPrice;
-	
-	private Boolean isActive;
-	@Transient
-	private String formattedPrice;
+		@ManyToOne
+		@JoinColumn(name = "category_id", nullable = false)
+		private Category category;
 
-	public String getFormattedPrice() {
-		return formattedPrice;
+
+		@Transient
+		private String formattedPrice;
+
+		public String getFormattedPrice() {
+			return formattedPrice;
+		}
+
+		public void setFormattedPrice(String formattedPrice) {
+			this.formattedPrice = formattedPrice;
+		}
+
+		@Transient
+		private String formattedDiscountPrice;
+
+		public String getFormattedDiscountPrice() {
+			return formattedDiscountPrice;
+		}
+
+		public void setFormattedDiscountPrice(String formattedDiscountPrice) {
+			this.formattedDiscountPrice = formattedDiscountPrice;
+		}
 	}
 
-	public void setFormattedPrice(String formattedPrice) {
-		this.formattedPrice = formattedPrice;
-	}
-	@Transient
-	private String formattedDiscountPrice;
-	public String getFormattedDiscountPrice() {
-		return formattedDiscountPrice;
-	}
-
-	public void setFormattedDiscountPrice(String formattedDiscountPrice) {
-		this.formattedDiscountPrice = formattedDiscountPrice;
-	}
-}

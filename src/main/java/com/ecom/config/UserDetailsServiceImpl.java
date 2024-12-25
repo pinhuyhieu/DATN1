@@ -6,19 +6,18 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import com.ecom.model.UserDtls;
-import com.ecom.repository.UserRepository;
+import com.ecom.repository.CustomerRepository;
 
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
 
 	@Autowired
-	private UserRepository userRepository;
+	private CustomerRepository customerRepository;
 
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
-		UserDtls user = userRepository.findByEmail(username);
+		UserDtls user = customerRepository.findByEmail(username);
 
 		if (user == null) {
 			throw new UsernameNotFoundException("user not found");

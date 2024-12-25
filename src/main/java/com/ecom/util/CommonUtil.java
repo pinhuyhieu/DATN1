@@ -2,17 +2,13 @@ package com.ecom.util;
 
 import java.io.UnsupportedEncodingException;
 import java.security.Principal;
-import java.text.NumberFormat;
-import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
-import com.ecom.model.ProductOrder;
-import com.ecom.model.UserDtls;
-import com.ecom.service.UserService;
+import com.ecom.service.CustomerService;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -25,7 +21,7 @@ public class CommonUtil {
 	private JavaMailSender mailSender;
 	
 	@Autowired
-	private UserService userService;
+	private CustomerService customerService;
 
 	public Boolean sendMail(String url, String reciepentEmail) throws UnsupportedEncodingException, MessagingException {
 
@@ -88,7 +84,7 @@ public class CommonUtil {
 	
 	public UserDtls getLoggedInUserDetails(Principal p) {
 		String email = p.getName();
-		UserDtls userDtls = userService.getUserByEmail(email);
+		UserDtls userDtls = customerService.getUserByEmail(email);
 		return userDtls;
 	}
 
